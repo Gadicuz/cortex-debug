@@ -345,6 +345,8 @@ export interface ConfigurationArguments extends DebugProtocol.LaunchRequestArgum
 
     // External 
     gdbTarget: string;
+
+    gdbEncoding?: string;
 }
 
 export interface DisassemblyInstruction {

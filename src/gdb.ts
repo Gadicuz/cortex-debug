@@ -952,7 +952,7 @@ export class GDBDebugSession extends LoggingDebugSession {
         } else {
             this.gdbInitCommands.push(`file-exec-and-symbols "${this.args.executable}"`);
         }
-        const ret = this.miDebugger.start(this.args.cwd, this.gdbInitCommands);
+        const ret = this.miDebugger.start(this.args.cwd, this.gdbInitCommands, this.args.gdbEncoding);
         return ret;
     }
 

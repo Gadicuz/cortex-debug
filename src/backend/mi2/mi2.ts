@@ -8,6 +8,7 @@ import * as os from 'os';
 import { ServerConsoleLog } from '../server';
 import { hexFormat } from '../../frontend/utils';
 import { ADAPTER_DEBUG_MODE } from '../../common';
+import * as iconv from 'iconv-lite';
 const path = posix;
 
 export interface ReadMemResults {
@@ -66,12 +67,22 @@ export class MI2 extends EventEmitter implements IBackend {
     protected actuallyStarted = false;
     protected isExiting = false;
     // public gdbVarsPromise: Promise<MINode> = null;
+    private ioEncode = (str: string) => Buffer.from(str);
+    private ioDecode = (buf: Buffer) => buf.toString();
 
     constructor(public application: string, public args: string[], public forLiveGdb = false) {
         super();
     }
 
-    public start(cwd: string, init: string[]): Promise<void> {
+    public start(cwd: string, init: string[], encoding?: string): Promise<void> {
+        if (encoding) {
+            if (iconv.encodingExists(encoding)) {
+                this.ioEncode = (str) => iconv.encode(str, encoding);
+                this.ioDecode = (buf) => iconv.decode(buf, encoding);
+            }
+            else
+                this.log('stderr', `Unsupported gdb encoding: ${encoding}.`);
+        }
         return new Promise<void>(async (resolve, reject) => {
             const isLive = this.forLiveGdb ? 'Live ' : '';
             this.process = ChildProcess.spawn(this.application, this.args, { cwd: cwd, env: this.procEnv });
@@ -199,7 +210,7 @@ export class MI2 extends EventEmitter implements IBackend {
         }
     }
 
-    private stdout(data) {
+    private stdout(data: string | Buffer) {
         if (trace) {
             this.log('stderr', 'stdout: ' + data);
         }
@@ -207,7 +218,7 @@ export class MI2 extends EventEmitter implements IBackend {
             this.buffer += data;
         }
         else {
-            this.buffer += data.toString('utf8');
+            this.buffer += this.ioDecode(data);
         }
         const end = this.buffer.lastIndexOf('\n');
         if (end !== -1) {
@@ -221,12 +232,12 @@ export class MI2 extends EventEmitter implements IBackend {
         }
     }
 
-    private stderr(data) {
+    private stderr(data: string | Buffer) {
         if (typeof data === 'string') {
             this.errbuf += data;
         }
         else {
-            this.errbuf += data.toString('utf8');
+            this.errbuf += this.ioDecode(data);
         }
         const end = this.errbuf.lastIndexOf('\n');
         if (end !== -1) {
@@ -1019,7 +1030,7 @@ export class MI2 extends EventEmitter implements IBackend {
         if (this.debugOutput || trace) {
             this.log('log', raw);
         }
-        this.process.stdin.write(raw + '\n');   // Sometimes, process is already null
+        this.process.stdin.write(this.ioEncode(raw + '\n'));   // Sometimes, process is already null
     }
 
     public getCurrentToken(): number {
